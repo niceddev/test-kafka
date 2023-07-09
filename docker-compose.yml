@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+    nginx:
+        image: nginx
+        container_name: ${DOCKER_PROJECT_NAME}_nginx
+        restart: always
+        volumes:
+            - ./:/var/www/${DOCKER_PROJECT_NAME}
+            - ./docker/nginx/:/etc/nginx/conf.d
+            - ./storage/docker/logs/nginx/:/var/log/nginx
+        ports:
+            - ${DOCKER_NGINX_PORT}:80
+
+    php-fpm:
+        container_name: ${DOCKER_PROJECT_NAME}_php_fpm
+        restart: always
+        build:
+            context: docker/php-fpm
+            dockerfile: Dockerfile
+            args:
+                PROJECT_NAME: ${DOCKER_PROJECT_NAME}
+        user: ${DOCKER_PROJECT_NAME}
+        volumes:
+            - ./:/var/www/${DOCKER_PROJECT_NAME}
+        ports:
+            - ${DOCKER_PHP_PORT}:9000
+
+    zookeeper:
+        image: docker.io/bitnami/zookeeper:3.8
+        restart: always
+        environment:
+            - ALLOW_ANONYMOUS_LOGIN=yes
+        volumes:
+            - zookeeper_data:/bitnami
+        ports:
+            - ${DOCKER_ZOOKEEPER_PORT}:2181
+
+    kafka:
+        image: docker.io/bitnami/kafka:3.5
+        restart: always
+        environment:
+            - ALLOW_PLAINTEXT_LISTENER=yes
+            - KAFKA_ENABLE_KRAFT=no
+            - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2182
+            - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
+        volumes:
+            - kafka_data:/bitnami
+        ports:
+            - ${DOCKER_KAFKA_PORT}:9092
+        depends_on:
+            - zookeeper
+
+    kafka-ui:
+        image: provectuslabs/kafka-ui:latest
+        container_name: ${DOCKER_PROJECT_NAME}_kafka-ui
+        restart: always
+        environment:
+            KAFKA_CLUSTERS_0_NAME: local
+            KAFKA_CLUSTERS_0_BOOTSTRAPSERVER: kafka:9092
+            KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2182
+            KAFKA_CLUSTERS_0_READONLY: false
+        ports:
+            - ${DOCKER_KAFKA_UI_PORT}:8080
+        volumes:
+            - ~/kui/config.yml:/etc/kafkaui/dynamic_config.yaml
+
+volumes:
+    zookeeper_data:
+        driver: local
+    kafka_data:
+        driver: local
